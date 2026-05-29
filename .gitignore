@@ -1,0 +1,14 @@
+# Secrets — never commit the real API key
+config.json
+
+# Build artifacts (regenerate with scripts/build_project_files.py)
+Project_Files.zip
+Papers.zip
+
+# Python / Jupyter
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+faiss_index/
+*.pdf.tmp
+"Reseach Proposal First Draft.pdf"
