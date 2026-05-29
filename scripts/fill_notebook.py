@@ -31,12 +31,61 @@ from langchain_openai import ChatOpenAI
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 '''
 
-NOFO_LOADER_CELL = '''from langchain.document_loaders import PyPDFLoader
+NOFO_LOADER_CELL = '''from langchain_community.document_loaders import PyPDFLoader
 
 # Reading the NOFO Document
 pdf_file = "/content/NOFO.pdf"
 pdf_loader = PyPDFLoader(pdf_file);
 NOFO_pdf = pdf_loader.load()
+'''
+
+# Step 2 summary loop — same as the template, but using the non-deprecated
+# langchain_community import (matches the rest of the notebook).
+SUMMARY_LOOP_CELL = '''import tiktoken
+from langchain_community.document_loaders import PyPDFLoader
+
+documents = []
+
+
+# Defining the max tokens to avoid error for context being to long
+encoding = tiktoken.encoding_for_model("gpt-4o-mini")
+MAX_TOKENS = 127500
+
+for file_path in list(document_dict.keys()):
+
+  # Extract the filename
+  filename = file_path.split("/")[-1]
+
+  # Load PDF
+  docs = PyPDFLoader(file_path,mode="single").load()
+
+  # extracting the pages
+  pages = docs[0].page_content
+
+  # combining the prompt with the pages of the research paper within the context length
+  available_tokens = MAX_TOKENS - len(encoding.encode(summary_prompt))
+  truncated_pages = encoding.decode(encoding.encode(pages)[:available_tokens])
+  full_prompt = summary_prompt + truncated_pages
+
+  # Calling the LLM
+  response = llm.invoke(full_prompt)
+
+  #  If the paper is relevant adding it to the documents variable
+  documents.append({ 'title': filename, 'llm_response': response.content, 'file_path':file_path})
+'''
+
+# Step 5 — robust JSON extraction. Tolerates a ```json ... ``` fence (or none)
+# instead of the brittle fixed-index slice content[7:-3].
+EVAL_PARSE_CELL = '''import json
+import re
+
+# Robustly extract the JSON object from the model response, whether or not it
+# is wrapped in a ```json ... ``` code fence (more reliable than slicing fixed
+# character offsets such as content[7:-3]).
+raw = eval_response.content.strip()
+match = re.search(r"```(?:json)?\\s*(\\{.*\\})\\s*```", raw, re.DOTALL)
+json_text = match.group(1) if match else raw
+json_resp = json.loads(json_text)
 '''
 
 TOPIC_PROMPT_CELL = '''# Combine all NOFO pages into a single string so the model sees the full context
@@ -295,10 +344,12 @@ REPLACEMENTS = {
     41: ("code", SUMMARY_PROMPT_CELL),
     42: ("code", CONFIG_CELL),
     43: ("code", LLM_CELL),
+    44: ("code", SUMMARY_LOOP_CELL),
     49: ("code", GEN_IDEA_PROMPT_CELL),
     58: ("code", TEMPLATE_LOADER_CELL),
     59: ("code", PROPOSAL_PROMPT_CELL),
     65: ("code", EVAL_PROMPT_CELL),
+    67: ("code", EVAL_PARSE_CELL),
     73: ("markdown", STEP7_MARKDOWN),
 }
 
